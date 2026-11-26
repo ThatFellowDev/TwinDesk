@@ -221,14 +221,26 @@ function meshNode(selected, roles) {
   assert.strictEqual(n.settings.clipboard.receive, true);
 }
 
-// A pair saved by the one-to-one app has no `values` (its _remember stores what values() held):
-// a pair.sync from that device on the mesh bus must merge, not throw (crashed the PC's link to the Mini).
+// A pair saved by the one-to-one app has no `values` (its _remember stores what values() held), or a
+// hand-edited one a bad `values`: a pair.sync from that device on the mesh bus merges into it on every
+// app, never throws (it crashed the PC's link to the Mini) and never keeps an array (JSON drops its keys).
 {
-  const n = meshNode('C', { A: 'guest', C: 'guest' });
-  n.settings.pairSync.A = { clipboard: { out: true, in: true } };
-  n.fromBus('A', { t: P.T.PAIR_SYNC, all: { values: { pace: 'fast' }, clipboard: { out: false, in: true } } });
-  assert.strictEqual(n.settings.pairSync.A.values.pace, 'fast');
-  assert.strictEqual(n.settings.pairSync.A.clipboard.in, false);
+  const { PairSync: LinuxSync } = require('../../linux/pairsync.js');
+  for (const bad of [undefined, null, 'x', []]) {
+    for (const kind of ['pc', 'linux', 'mac']) {
+      const settings = meshSettings();
+      settings.pairSync.A = { clipboard: { out: true, in: true }, ...(bad === undefined ? {} : { values: bad }) };
+      const handlers = {};
+      const bus = { selectedId: () => 'C', on: (t, fn) => { handlers[t] = fn; }, onPeer() {}, send() {} };
+      const noop = { on() {} };
+      if (kind === 'mac') new MacSync({ server: noop, getSettings: () => settings, saveSettings() {}, apply() {}, only: ['clipboard'], bus, peerRole: () => 'guest', peerOs: () => P.OS.WIN });
+      else new (kind === 'pc' ? PcSync : LinuxSync)({ link: noop, settings, save() {}, set() {}, only: ['clipboard'], bus, peerRole: () => 'guest', peerOs: () => P.OS.MAC });
+      handlers[P.T.PAIR_SYNC]({ t: P.T.PAIR_SYNC, all: { values: { pace: 'fast' }, clipboard: { out: false, in: true } } }, 'A');
+      const v = settings.pairSync.A.values;
+      assert.ok(v && !Array.isArray(v) && v.pace === 'fast', `${kind} merges into values ${JSON.stringify(bad)}`);
+      assert.strictEqual(settings.pairSync.A.clipboard.in, false, `${kind} keeps merging the features`);
+    }
+  }
 }
 
 console.log('pairsync: passed');
