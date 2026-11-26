@@ -100,6 +100,7 @@ class PairSync {
     if (!add) return;
     const store = this._byPeer();
     const cur = store[peerId] || { values: {} };
+    if (!cur.values || typeof cur.values !== 'object') cur.values = {}; // saved by the one-to-one app: none
     for (const [k, v] of Object.entries(add.values || {})) cur.values[k] = v;
     for (const [f, v] of Object.entries(add)) {
       if (f === 'values' || !v) continue;

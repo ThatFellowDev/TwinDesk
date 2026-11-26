@@ -221,4 +221,14 @@ function meshNode(selected, roles) {
   assert.strictEqual(n.settings.clipboard.receive, true);
 }
 
+// A pair saved by the one-to-one app has no `values` (its _remember stores what values() held):
+// a pair.sync from that device on the mesh bus must merge, not throw (crashed the PC's link to the Mini).
+{
+  const n = meshNode('C', { A: 'guest', C: 'guest' });
+  n.settings.pairSync.A = { clipboard: { out: true, in: true } };
+  n.fromBus('A', { t: P.T.PAIR_SYNC, all: { values: { pace: 'fast' }, clipboard: { out: false, in: true } } });
+  assert.strictEqual(n.settings.pairSync.A.values.pace, 'fast');
+  assert.strictEqual(n.settings.pairSync.A.clipboard.in, false);
+}
+
 console.log('pairsync: passed');
