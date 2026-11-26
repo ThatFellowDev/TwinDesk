@@ -10,6 +10,7 @@ const dgram = require('dgram');
 const os = require('os');
 const { EventEmitter } = require('events');
 const P = require('../shared/protocol.js');
+const NetAllow = require('../shared/netallow.js');
 
 const RETRY_BIND_MS = 5000;
 // Errors that mean macOS's Local Network permission is missing.
@@ -198,6 +199,7 @@ class Discovery extends EventEmitter {
   }
 
   _onMessage(buf, rinfo) {
+    if (!NetAllow.ok(rinfo.address)) return;
     let m;
     try {
       m = JSON.parse(buf.toString('utf8'));

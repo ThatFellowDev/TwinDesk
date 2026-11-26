@@ -29,6 +29,7 @@ const dgram = require('dgram');
 const net = require('net');
 const { EventEmitter } = require('events');
 const { performance } = require('perf_hooks');
+const NetAllow = require('./netallow.js');
 
 const MAGIC0 = 0x54; // 'T'
 const MAGIC1 = 0x4c; // 'L'
@@ -537,6 +538,7 @@ class InputLane extends EventEmitter {
   }
 
   _onPacket(pkt, rinfo) {
+    if (!NetAllow.ok(rinfo.address)) return;
     if (!this.keys) return;
     const p = open(this.keys.rx, pkt, this.rxPkt);
     if (!p || !this.win.ok(p.seq)) return;

@@ -11,6 +11,7 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { EventEmitter } = require('events');
 const P = require('../shared/protocol.js');
+const NetAllow = require('../shared/netallow.js');
 
 const RETRY_BIND_MS = 5000;
 
@@ -233,6 +234,7 @@ class Discovery extends EventEmitter {
   }
 
   _onMessage(buf, rinfo) {
+    if (!NetAllow.ok(rinfo.address)) return;
     let m;
     try {
       m = JSON.parse(buf.toString('utf8'));

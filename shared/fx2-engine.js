@@ -29,6 +29,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const crypto = require('crypto');
+const NetAllow = require('./netallow.js');
 
 const PATH = '/twindesk/fx2/';
 const HEADER = 'x-twindesk-fx';
@@ -177,7 +178,7 @@ class Engine {
     for (const k of ['key', 'cert', 'pfx', 'ca']) if (tls && tls[k]) opts[k] = typeof tls[k] === 'string' ? tls[k] : Buffer.from(tls[k]);
     if (tls && tls.passphrase) opts.passphrase = tls.passphrase;
     let s;
-    try { s = https.createServer(opts, (req, res) => this._request(req, res)); } catch (e) {
+    try { s = https.createServer(opts, (req, res) => this._request(req, res)); s.on('connection', NetAllow.guard); } catch (e) {
       console.warn(`[fx2] no server: ${e.message}`);
       return this.post({ ev: 'port', port: 0 });
     }
@@ -208,6 +209,7 @@ class Engine {
     }
     if (this.plainServer) return this.post({ ev: 'plainPort', port: this.plainPort });
     const s = http.createServer((req, res) => this._request(req, res, true));
+    s.on('connection', NetAllow.guard);
     this.plainServer = s;
     s.keepAliveTimeout = 60000;
     s.requestTimeout = 0; // not Node's 5-min cap on a whole request: a big upload outlasts it; idle timeouts catch stalls

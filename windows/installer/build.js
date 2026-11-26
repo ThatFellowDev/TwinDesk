@@ -93,9 +93,8 @@ async function main() {
   copy(path.join(ROOT, 'windows-helper', 'bin', 'macshare-winhelper.exe'),
     path.join(STAGE, 'windows-helper', 'bin', 'macshare-winhelper.exe'));
   // iPhone app signing's helper (ios-signer/, shared/iossign.js): optional, built with cargo.
-  if (process.platform === 'win32') {
-    try { execFileSync('cmd.exe', ['/c', path.join(ROOT, 'ios-signer', 'build.cmd')], { stdio: 'inherit' }); } catch { console.log('note: the iOS signing helper didn’t build'); }
-  }
+  // ThatFellowDev build: no iOS signer (it fetches an unpinned IPA and uses a third-party anisette server).
+  fs.rmSync(path.join(ROOT, 'ios-signer', 'bin'), { recursive: true, force: true });
   if (STORE) checkSigner();
   if (fs.existsSync(path.join(ROOT, 'ios-signer', 'bin'))) copy(path.join(ROOT, 'ios-signer', 'bin'), path.join(STAGE, 'ios-signer', 'bin'));
   else console.log('note: no ios-signer/bin — iPhone app signing is left out (ios-signer/build.cmd, with cargo)');

@@ -34,6 +34,7 @@
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+const NetAllow = require('./netallow.js');
 const crypto = require('crypto');
 const P = require('./protocol.js');
 const awake = require('./awake.js');
@@ -180,6 +181,7 @@ class FastFiles {
       res.end();
     });
     srv.keepAliveTimeout = 60000;
+    srv.on('connection', NetAllow.guard);
     srv.requestTimeout = 0; // not Node's 5-min cap on a whole request: a big upload outlasts it; idle timeouts catch stalls
     srv.on('error', (e) => console.warn(`[fx] plain server: ${e.code || e.message}`));
     srv.listen(0, '0.0.0.0', () => {

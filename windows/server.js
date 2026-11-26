@@ -17,6 +17,7 @@ const https = require('https');
 const { EventEmitter } = require('events');
 const { WebSocketServer } = require('ws');
 const P = require('../shared/protocol.js');
+const NetAllow = require('../shared/netallow.js');
 const Quiet = require('../shared/quiet.js'); // idle sessions stop pinging every second (#143)
 
 const ICE_OFFERS = new Set([P.T.RTC_OFFER, P.T.AUDIO_OFFER]);
@@ -35,6 +36,7 @@ class Server extends EventEmitter {
     this.tls = { pfx, passphrase }; // also the shared folder's server (shared/foldershare.js)
     this.https = https.createServer(this.tls);
     this.https.requestTimeout = 0; // not Node's 5-min cap on a whole request: fast files' PUTs (a phone's, a guest's) outlast it
+    this.https.on('connection', NetAllow.guard); // ThatFellowDev build: shared/netallow.js
     this.wss = new WebSocketServer({ server: this.https, maxPayload: P.MAX_PAYLOAD });
     this.wss.on('connection', (ws, req) => this._onConnection(ws, req));
     this.wss.on('error', () => {}); // ws repeats the server's errors here; listenError below reports them

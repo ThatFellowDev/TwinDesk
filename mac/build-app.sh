@@ -20,7 +20,8 @@ EV=$(node -p "require('./node_modules/electron/package.json').version")
 ../mac-helper/build.sh "$ARCH"
 # iPhone app signing's helper (ios-signer/, shared/iossign.js). Optional: without cargo, or its target,
 # the app leaves that page's work out.
-TWINDESK_SIGNER_ANY_IPA=1 ../ios-signer/build.sh "$ARCH" || echo "note: no iOS signing helper in this build" >&2
+# ThatFellowDev build: no iOS signer (it fetches an unpinned IPA and uses a third-party anisette server).
+rm -rf ../ios-signer/bin
 
 # TwinDesk for Android with notification access, which the Mac installs on a phone over wireless
 # debugging (phone-bridge.js): the newest full build from android/dist, if one was built.
@@ -28,7 +29,8 @@ FULL_APK=$(ls "$ROOT"/android/dist/*-full.apk 2>/dev/null | sort | tail -1)
 if [ -n "$FULL_APK" ]; then cp "$FULL_APK" vendor/twindesk-android-full.apk; else echo "note: no android/dist/*-full.apk — the app won't offer the full Android build"; fi
 
 # adb for wireless debugging (phone-bridge.js), fetched once into mac/vendor/adb (scripts/fetch-adb.sh).
-sh scripts/fetch-adb.sh
+# ThatFellowDev build: no adb (Android only; upstream fetches platform-tools-latest with no hash).
+rm -rf vendor/adb
 
 rm -rf "$STAGE" && mkdir -p "$STAGE/mac" "$STAGE/shared" "$STAGE/mac-helper/.build/release" "$STAGE/node_modules"
 rsync -a --exclude node_modules --exclude dist --exclude dev --exclude test --exclude dmg --exclude build-app.sh --exclude build-dmg.sh --exclude scripts/signing-identity.sh --exclude entitlements.plist ./ "$STAGE/mac/"

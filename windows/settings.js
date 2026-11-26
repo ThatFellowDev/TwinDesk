@@ -194,7 +194,7 @@ function normalize(s) {
       sound: bool(pcs.sound, false), // the screen's sound in the same session
       input: bool(pcs.input, true), // the Mac's mouse and keyboard drive this PC
       codec: pcs.codec === 'h265' ? 'h265' : 'h264', // Encoder (shared/screencodec.js)
-      remote: bool(pcs.remote, true), // The viewer may start/stop and switch it (screen.ctl)
+      remote: bool(pcs.remote, false), // The viewer may start/stop and switch it (screen.ctl); ThatFellowDev build: off until turned on
     },
     pairSync: pairSync(s.pairSync), // {deviceId: {feature: {out, in}}} (pairsync.js)
     wake: { peers: wakePeers(wk.peers) }, // {deviceId: {name, os, macs, address, at}} from wol.info

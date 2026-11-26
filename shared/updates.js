@@ -346,6 +346,7 @@ class Updates {
 
   // Update: installed in place where this copy can be, else the download (or release page) opened.
   open() {
+    if (this.pinned) return;
     if (this.store) return this.openUrl('ms-windows-store://pdp/?ProductId=9NXNB01FXJ5N');
     if (this._installable()) return this.install();
     this.openUrl(this.url);
