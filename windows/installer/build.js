@@ -33,7 +33,13 @@ const SKIP = new Set(['node_modules', 'dist', 'installer', 'test', 'package-lock
 const STORE = process.argv.includes('store');
 const PORTABLE = process.argv.includes('portable');
 if (PORTABLE && (FULL_KVM || STORE)) throw new Error('TwinDesk Portable is the normal build only (no Full KVM, no Store)');
-const ARGS = process.argv.slice(2).filter((a) => a !== 'store' && a !== 'portable');
+// ThatFellowDev build: `dir` makes only the unpacked app (dist/win-unpacked) for a per-user copy, with
+// no installer, so nothing asks for administrator or adds firewall rules. TWINDESK_HELPER_PREBUILT=1
+// packs the helper already in windows-helper/bin instead of running build.cmd (which also makes and
+// signs the calls package with a new certificate in the user's store).
+const DIR = process.argv.includes('dir');
+if (DIR && (FULL_KVM || STORE || PORTABLE)) throw new Error('dir is the normal build only');
+const ARGS = process.argv.slice(2).filter((a) => a !== 'store' && a !== 'portable' && a !== 'dir');
 const ARCHS = ARGS.length ? ARGS : ['x64'];
 // Partner Center › TwinDesk › Product identity.
 const STORE_ID = { identityName: 'InukaAsith.TwinDesk', publisher: 'CN=C369DC02-ED00-44E8-B6A6-C553635C0E0D', publisherDisplayName: 'Inuka Asith' };
@@ -65,7 +71,7 @@ async function main() {
   if (STORE) delete process.env.TWINDESK_SIGNER_ANY_IPA; // ios-signer/build.cmd: TwinDesk's own IPA only
   // The helper needs Windows' C# compiler; elsewhere (a Mac) the installer reuses the .exe already
   // in windows-helper/bin/, e.g. one taken from the last release.
-  if (process.platform === 'win32') {
+  if (process.platform === 'win32' && !process.env.TWINDESK_HELPER_PREBUILT) {
     console.log('Building the helper…');
     execFileSync('cmd.exe', ['/c', path.join(ROOT, 'windows-helper', 'build.cmd')], { stdio: 'inherit' });
   } else if (!fs.existsSync(path.join(ROOT, 'windows-helper', 'bin', 'macshare-winhelper.exe'))) {
@@ -135,7 +141,8 @@ async function main() {
   if (!fs.existsSync(path.join(WIN, 'vendor', 'twindesk-relay.jar'))) {
     copy(path.join(ROOT, 'mac', 'vendor', 'twindesk-relay.jar'), path.join(STAGE, 'windows', 'vendor', 'twindesk-relay.jar'));
   }
-  await fetchAdb(path.join(STAGE, 'windows', 'vendor', 'adb'));
+  if (DIR) console.log('note: dir build: no adb (Android only, as in the ThatFellowDev Mac build)');
+  else await fetchAdb(path.join(STAGE, 'windows', 'vendor', 'adb'));
   // TwinDesk for Android with notification access, which this PC installs over wireless debugging.
   const dist = path.join(ROOT, 'android', 'dist');
   const full = fs.existsSync(dist) && fs.readdirSync(dist).filter((n) => /-full\.apk$/.test(n)).sort().pop();
@@ -150,7 +157,7 @@ async function main() {
     license: pkg.license, author: 'inukaasith', main: 'windows/main.js', dependencies: pkg.dependencies,
   }, null, 2));
 
-  for (const arch of ARCHS) await (STORE ? packStore(arch) : PORTABLE ? packPortable(arch) : pack(arch));
+  for (const arch of ARCHS) await (STORE ? packStore(arch) : PORTABLE ? packPortable(arch) : DIR ? packDir(arch) : pack(arch));
 }
 
 // The Store's copy signs TwinDesk for iPhone only (ios-signer/build.cmd without
@@ -286,6 +293,27 @@ async function packPortable(arch) {
     },
   });
   console.log('Done: ' + path.join(WIN, 'dist', name));
+}
+
+async function packDir(arch) {
+  console.log('Packaging the unpacked app for ' + arch + '…');
+  await builder.build({
+    targets: builder.Platform.WINDOWS.createTarget('dir', builder.Arch[arch]),
+    projectDir: WIN,
+    config: {
+      appId: 'org.macshare.windows',
+      productName: 'TwinDesk',
+      copyright: 'Copyright (C) 2026 inukaasith',
+      electronVersion,
+      directories: { app: STAGE, output: path.join(WIN, 'dist') },
+      asar: false,
+      npmRebuild: false,
+      // signAndEditExecutable off: no winCodeSign download, whose archive needs symlink rights on
+      // Windows; the exe keeps Electron's icon and version info.
+      win: { icon: path.join(__dirname, 'icon.ico'), executableName: 'TwinDesk', signAndEditExecutable: false },
+    },
+  });
+  console.log('Done: ' + path.join(WIN, 'dist', arch === 'x64' ? 'win-unpacked' : 'win-' + arch + '-unpacked'));
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

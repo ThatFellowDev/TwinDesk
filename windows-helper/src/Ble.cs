@@ -542,14 +542,20 @@ namespace MacShare
             // later only, so looked up first (FastRequest isn't compiled to native code before then).
             static IDisposable Fast(BluetoothLEDevice d)
             {
+#if NO_BLE_PARAMS
+                // ThatFellowDev build with the 10.0.19041 SDK, whose Windows.winmd has no connection-parameter types.
+                return null;
+#else
                 try
                 {
                     if (!Windows.Foundation.Metadata.ApiInformation.IsMethodPresent("Windows.Devices.Bluetooth.BluetoothLEDevice", "RequestPreferredConnectionParameters")) return null;
                     return FastRequest(d);
                 }
                 catch (Exception e) { Net.Log("connection parameters: " + e.Message); return null; }
+#endif
             }
 
+#if !NO_BLE_PARAMS
             [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
             static IDisposable FastRequest(BluetoothLEDevice d)
             {
@@ -557,6 +563,7 @@ namespace MacShare
                 if (r.Status != BluetoothLEPreferredConnectionParametersRequestStatus.Success) Net.Log("connection parameters: " + r.Status);
                 return r;
             }
+#endif
 
             public Pipe(string dev, Guid service, string ev)
             {
