@@ -75,9 +75,9 @@ async function main() {
     console.log('Building the helper…');
     execFileSync('cmd.exe', ['/c', path.join(ROOT, 'windows-helper', 'build.cmd')], { stdio: 'inherit' });
   } else if (!fs.existsSync(path.join(ROOT, 'windows-helper', 'bin', 'macshare-winhelper.exe'))) {
-    throw new Error('Not on Windows: put a built macshare-winhelper.exe in windows-helper/bin/ first');
+    throw new Error((process.env.TWINDESK_HELPER_PREBUILT ? 'TWINDESK_HELPER_PREBUILT is set but no' : 'Not on Windows: put a built') + ' macshare-winhelper.exe in windows-helper/bin/');
   } else {
-    console.log('Not on Windows: using the helper already in windows-helper/bin/');
+    console.log((process.env.TWINDESK_HELPER_PREBUILT ? 'Prebuilt helper' : 'Not on Windows') + ': using the helper already in windows-helper/bin/');
   }
 
   console.log('Staging…');
@@ -110,7 +110,7 @@ async function main() {
   else console.log('note: no windows-helper/bin/macshare-winhelper-multi.exe — Multi-device uses the one-to-one helper (one edge)');
   // The calls' sound on this PC (callaudio.js): its .exe, its signed package and that certificate.
   // Not in the Store's MSIX: it has no phone line capabilities (store-manifest.xml).
-  for (const f of STORE || PORTABLE ? [] : ['macshare-calls.exe', 'twindesk-calls.msix', 'twindesk-calls.cer']) { // not portable: a package to install
+  for (const f of STORE || PORTABLE || DIR ? [] : ['macshare-calls.exe', 'twindesk-calls.msix', 'twindesk-calls.cer']) { // not portable or dir: a package to install
     const from = path.join(ROOT, 'windows-helper', 'bin', f);
     if (fs.existsSync(from)) copy(from, path.join(STAGE, 'windows-helper', 'bin', f));
     else console.log('note: no windows-helper/bin/' + f + ' — calls won’t play on the PC (build the helper on Windows)');

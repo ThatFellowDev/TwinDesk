@@ -20,8 +20,12 @@ rem ReZume reads browsers' address bars with UI Automation (Activity.cs), WPF's 
 set UIA=/r:"%FW%\WPF\UIAutomationClient.dll" /r:"%FW%\WPF\UIAutomationTypes.dll" /r:"%FW%\WPF\WindowsBase.dll"
 set WINRT=/r:"%UM%\Windows.winmd" /r:"%FW%\System.Runtime.WindowsRuntime.dll" /r:"%FW%\System.Runtime.dll" ^
   /r:"%FW%\System.Threading.Tasks.dll" /r:"%FW%\System.Runtime.InteropServices.WindowsRuntime.dll"
+rem ThatFellowDev build: TWINDESK_NO_BLE_PARAMS=1 for the 10.0.19041 SDK, whose Windows.winmd lacks the
+rem Bluetooth LE connection-parameter types (Ble.cs Fast then asks for nothing).
+set BLEDEF=
+if defined TWINDESK_NO_BLE_PARAMS set BLEDEF=/define:NO_BLE_PARAMS
 if not exist "%BIN%" mkdir "%BIN%"
-"%CSC%" /nologo /optimize+ /platform:anycpu /target:exe /out:"%BIN%\macshare-winhelper.new.exe" ^
+"%CSC%" /nologo /optimize+ /platform:anycpu /target:exe %BLEDEF% /out:"%BIN%\macshare-winhelper.new.exe" ^
   /r:System.Web.Extensions.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll %UIA% %WINRT% "%~dp0src\*.cs" || exit /b 1
 rem The previous build may still be running (old.exe): then park the current one under another name.
 del /q "%BIN%\macshare-winhelper.old*.exe" 2>nul
@@ -31,7 +35,7 @@ if exist "%BIN%\macshare-winhelper.exe" ren "%BIN%\macshare-winhelper.exe" %OLD%
 ren "%BIN%\macshare-winhelper.new.exe" macshare-winhelper.exe
 rem Multi-device's helper (docs/multi-device.md): the same sources with MULTI, several watched sides
 rem (CaptureMulti.cs); only windows/mesh starts it. Without MULTI the code above is the one-to-one helper's.
-"%CSC%" /nologo /optimize+ /platform:anycpu /target:exe /define:MULTI /out:"%BIN%\macshare-winhelper-multi.new.exe" ^
+"%CSC%" /nologo /optimize+ /platform:anycpu /target:exe /define:MULTI %BLEDEF% /out:"%BIN%\macshare-winhelper-multi.new.exe" ^
   /r:System.Web.Extensions.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll %UIA% %WINRT% "%~dp0src\*.cs" || exit /b 1
 del /q "%BIN%\macshare-winhelper-multi.old*.exe" 2>nul
 set OLD=macshare-winhelper-multi.old.exe
@@ -61,6 +65,6 @@ call "%~dp0pad\build.cmd" || exit /b 1
 rem The Full KVM build only (docs/full-kvm.md, TWINDESK_EDITION=full-kvm): the agent the service runs
 rem on every desktop (Agent.cs, FULLKVM) and the service itself (windows\fullkvm\build.cmd).
 if /i not "%TWINDESK_EDITION%"=="full-kvm" exit /b 0
-"%CSC%" /nologo /optimize+ /platform:anycpu /target:exe /define:MULTI;FULLKVM /out:"%BIN%\macshare-winhelper-agent.exe" ^
+"%CSC%" /nologo /optimize+ /platform:anycpu /target:exe /define:MULTI;FULLKVM %BLEDEF% /out:"%BIN%\macshare-winhelper-agent.exe" ^
   /r:System.Web.Extensions.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll %UIA% %WINRT% "%~dp0src\*.cs" || exit /b 1
 call "%~dp0..\windows\fullkvm\build.cmd" || exit /b 1
