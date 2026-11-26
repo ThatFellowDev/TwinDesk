@@ -57,7 +57,7 @@ const MAX_STATE = 64 * 1024;
 const MAX_IPA = 4 * 1024 * 1024 * 1024;
 const RELEASE_API = 'https://api.github.com/repos/InukaAsith/TwinDesk/releases/latest';
 const RELEASE_MS = 6 * 60 * 60 * 1000;
-const { compare } = require('./updates.js');
+const { compare, PINNED } = require('./updates.js');
 const str = (v, n = 200) => (typeof v === 'string' ? v.slice(0, n) : '');
 const b64 = (v, n) => (typeof v === 'string' && v.length <= n && /^[A-Za-z0-9+/]+=*$/.test(v) ? v : '');
 
@@ -164,7 +164,7 @@ class IosSign extends EventEmitter {
 
   // The latest release's version, for Update TwinDesk (looked up at most every 6 hours).
   async _release(force = false) {
-    if (this.cfg().on !== true || this.releasing || (!force && Date.now() - this.latestAt < RELEASE_MS)) return;
+    if (PINNED || this.cfg().on !== true || this.releasing || (!force && Date.now() - this.latestAt < RELEASE_MS)) return;
     this.releasing = true;
     try {
       let f = (url, o) => fetch(url, o);

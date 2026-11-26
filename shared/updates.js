@@ -18,6 +18,9 @@ const RELEASES = `https://github.com/${REPO}/releases`;
 const FIRST_DELAY = 15 * 1000;
 const EVERY = 6 * 60 * 60 * 1000;
 const CHECK_MS = 15000;
+// ThatFellowDev pinned build (branch tfd-pinned): never asks GitHub for releases and never downloads
+// or installs one. Updates come only from our reviewed fork, built by hand.
+const PINNED = true;
 
 // Escape HTML entities to prevent any injection in release notes.
 function escapeHtml(str) {
@@ -198,6 +201,7 @@ class Updates {
     // The Microsoft Store's copy (windows/storepkg.js): the Store updates it. Nothing is checked,
     // downloaded or installed here.
     this.store = opts.store === true;
+    this.pinned = opts.pinned === undefined ? PINNED : opts.pinned === true;
     this.self = this.store ? null : opts.selfUpdate === undefined ? makeSelf(opts.platform, this.fetch) : opts.selfUpdate;
     this.idleTimer = null;
     this.status = {
@@ -236,7 +240,7 @@ class Updates {
 
   // Start (or stop) the automatic checks after the setting changed.
   start() {
-    if (this.store) return;
+    if (this.store || this.pinned) return;
     clearTimeout(this.first);
     clearInterval(this.timer);
     this.first = null;
@@ -270,7 +274,7 @@ class Updates {
   }
 
   async check(manual = true) {
-    if (this.store || this.status.checking) return;
+    if (this.store || this.pinned || this.status.checking) return;
     this._set({ checking: true, error: '', promptUpdate: false });
     try {
       const url = `${API}?_=${Date.now()}`;
@@ -349,7 +353,7 @@ class Updates {
 
   _installable() {
     const s = this.status;
-    return !!(this.self && this.self.kind && s.available && s.download && this.self.fits(s.download));
+    return !this.pinned && !!(this.self && this.self.kind && s.available && s.download && this.self.fits(s.download));
   }
 
   // Download (or reuse the download) and install now.
@@ -431,4 +435,4 @@ function makeSelf(platform, fetchFn) {
   } catch { return null; }
 }
 
-module.exports = { Updates, compare, pickAsset, parse, formatReleaseNotes, REPO };
+module.exports = { Updates, compare, pickAsset, parse, formatReleaseNotes, REPO, PINNED };

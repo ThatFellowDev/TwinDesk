@@ -10,7 +10,7 @@ async function run() {
     const settings = { updates: { auto: true, notified: '', skipped: '' } };
     const notifications = [], requests = [];
     let saves = 0, shown = 0, opened = 0;
-    const owner = new Updates({
+    const owner = new Updates({ pinned: false,
       current, platform: language === undefined ? 'linux' : 'win', arch: 'x64',
       getSettings: () => settings, save: () => { saves++; },
       notify: (...args) => notifications.push(args), onShowModal: () => { shown++; },
@@ -52,7 +52,7 @@ async function run() {
   // Resolve the callback at notification time, rather than caching the startup language.
   let language = 'en';
   const notifications = [], settings = { updates: { auto: true, notified: '', skipped: '' } };
-  const owner = new Updates({
+  const owner = new Updates({ pinned: false,
     current: '2.3.0', platform: 'mac', getLanguage: () => language, getSettings: () => settings,
     notify: (...args) => notifications.push(args),
     fetch: async () => ({ ok: true, status: 200, json: async () => ({ tag_name: 'v2.4.0', assets: [] }) }),

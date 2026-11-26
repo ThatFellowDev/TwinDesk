@@ -93,7 +93,7 @@ let notificationCalled = 0;
 let modalCalled = 0;
 let changed = 0;
 
-const u = new Updates({
+const u = new Updates({ pinned: false,
   current: '2.3.0',
   platform: 'win',
   arch: 'x64',
@@ -150,7 +150,7 @@ const u = new Updates({
   assert.strictEqual(savedSettings.updates.skipped, '');
   assert.strictEqual(u.status.skipped, false);
 
-  const stalled = new Updates({
+  const stalled = new Updates({ pinned: false,
     current: '2.4.0', platform: 'win', getSettings: () => savedSettings, timeoutMs: 10,
     fetch: (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('request timed out')), { once: true })),
   });
