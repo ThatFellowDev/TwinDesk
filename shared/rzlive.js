@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const os = require('os');
+const NetAllow = require('./netallow.js');
 const net = require('net');
 const tls = require('tls');
 const path = require('path');
@@ -93,6 +94,7 @@ class LiveShare {
       srv.keepAliveTimeout = 30000;
       srv.requestTimeout = 0; // not Node's 5-min cap on a whole request: a big upload outlasts it; idle timeouts catch stalls
       srv.on('error', reject);
+      srv.on('connection', NetAllow.guard);
       srv.listen(0, '0.0.0.0', () => {
         this.server = srv;
         this.port = srv.address().port;

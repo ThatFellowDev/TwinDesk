@@ -52,6 +52,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const NetAllow = require('../netallow.js');
 const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
@@ -258,6 +259,7 @@ class WebHub extends EventEmitter {
       // still time out).
       srv.requestTimeout = 0;
       srv.keepAliveTimeout = 30000;
+      srv.on('connection', NetAllow.guard);
       srv.on('upgrade', (req, sock, head) => {
         if (!req.url.startsWith('/ws')) return sock.destroy();
         this.wss.handleUpgrade(req, sock, head, (ws) => this._socket(ws, req));
@@ -276,6 +278,7 @@ class WebHub extends EventEmitter {
     this.shortSrv = [[http.createServer((q, r) => this._forward(q, r, false)), 80, 'http'], [https.createServer(tls(), (q, r) => this._forward(q, r, true)), 443, 'https']];
     for (const [srv, port, k] of this.shortSrv) {
       srv.on('error', () => { this.short[k] = false; this.emit('change'); });
+      srv.on('connection', NetAllow.guard);
       srv.on('upgrade', (req, sock) => sock.destroy());
       srv.listen(port, () => { this.short[k] = true; this.emit('change'); });
     }

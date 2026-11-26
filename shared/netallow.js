@@ -1,17 +1,21 @@
 // TwinDesk — Copyright (C) 2026 inukaasith. GPL-3.0, see LICENSE.
 // ThatFellowDev build: who may reach this computer's listeners at all (TCP 47800, the files engines,
-// discovery on UDP 47801, the input lane), checked before anything else reads a byte.
+// discovery on UDP 47801, the input lane, TwinDesk Web, AirPlay, shared folders, ReZume live),
+// checked before anything else reads a byte. The native input lane (native/tdfast) is not covered: it
+// drops every packet that fails AES-GCM first. Outgoing beacons and mDNS adverts are not filtered.
 //
 // The list is <userData>/allow-from.json: ["100.82.128.47", "100.64.0.0/10", ...] (IPv4 addresses or
-// CIDRs). No file, or an empty list: everyone, as upstream. Loopback is always allowed, because the
-// Bluetooth pipe and a phone's USB cable arrive as 127.0.0.1. Read once; a change needs a restart.
-// The listeners stay on 0.0.0.0 so they still start when Tailscale comes up after TwinDesk.
+// CIDRs; IPv6 entries are not supported). No file: everyone, as upstream. A file that can't be read,
+// isn't a JSON array or has no valid entry: loopback only. Loopback is always allowed, because the
+// Bluetooth pipe and a phone's USB cable arrive as 127.0.0.1. Read once per process; a change needs a
+// restart. The listeners stay on 0.0.0.0 so they still start when Tailscale comes up after TwinDesk.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 
 const MAX_FILE = 64 * 1024;
+const LOOPBACK = { net: 0x7f000000, mask: 0xff000000 };
 let rules = null; // [{net, mask}] or [] for "everyone"
 
 function ip4(s) {
@@ -31,12 +35,18 @@ function rule(s) {
   return { net: (a & mask) >>> 0, mask };
 }
 
-// list: array of strings; entries that aren't an IPv4 address or CIDR are dropped. A list given but
-// left with no valid entry allows only loopback, never everyone.
+// list: null = everyone; an array of strings = those (entries that aren't an IPv4 address or CIDR
+// are dropped and logged); anything else, or nothing valid left = loopback only, never everyone.
 function set(list) {
-  if (!Array.isArray(list) || !list.length) { rules = []; return; }
-  rules = list.map(rule).filter(Boolean);
-  if (!rules.length) rules = [{ net: 0x7f000000, mask: 0xff000000 }];
+  if (list === null || list === undefined) { rules = []; return; }
+  if (!Array.isArray(list)) { console.log('[netallow] the list is not an array (loopback only)'); rules = [LOOPBACK]; return; }
+  rules = [];
+  for (const e of list) {
+    const r = rule(e);
+    if (r) rules.push(r);
+    else console.log('[netallow] ignored entry ' + JSON.stringify(e).slice(0, 80));
+  }
+  if (!rules.length) rules = [LOOPBACK];
 }
 
 // The files engine runs in a utilityProcess, where Electron has no app: there the folder main.js
@@ -57,9 +67,13 @@ function defaultFile() {
 function load(file = defaultFile()) {
   let list = null;
   try {
-    if (file && fs.statSync(file).size <= MAX_FILE) list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!file) throw new Error('no path');
+    if (fs.statSync(file).size > MAX_FILE) throw new Error('larger than ' + MAX_FILE + ' bytes');
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (list === null) throw new Error('null');
   } catch (e) {
-    if (e.code !== 'ENOENT') { console.log('[netallow] unreadable ' + file + ': ' + e.message + ' (loopback only)'); list = ['127.0.0.1']; }
+    if (e.code === 'ENOENT') console.log('[netallow] no ' + file + ': every source allowed');
+    else { console.log('[netallow] unreadable ' + file + ': ' + e.message + ' (loopback only)'); list = ['127.0.0.1']; }
   }
   set(list);
   if (rules.length) console.log('[netallow] ' + rules.length + ' allowed source(s) from ' + file);
@@ -68,7 +82,7 @@ function load(file = defaultFile()) {
 function ok(address) {
   if (rules === null) load();
   if (!rules.length) return true;
-  let a = String(address || '').replace(/^::ffff:/i, '');
+  const a = String(address || '').replace(/^::ffff:/i, '');
   if (a === '::1') return true;
   const v = ip4(a);
   if (v === null) return false; // other IPv6: not on the list

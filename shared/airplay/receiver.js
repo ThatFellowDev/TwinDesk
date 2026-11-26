@@ -27,6 +27,7 @@
 
 const crypto = require('crypto');
 const dgram = require('dgram');
+const NetAllow = require('../netallow.js');
 const net = require('net');
 const os = require('os');
 const path = require('path');
@@ -443,6 +444,7 @@ class AirPlayReceiver extends EventEmitter {
     if (this.server) return Promise.resolve();
     this.identity = loadIdentity(path.join(this.dir, 'airplay-identity.json'));
     const server = net.createServer((sock) => {
+      if (!NetAllow.ok(sock.remoteAddress)) return sock.destroy();
       sock.setNoDelay(true);
       this.conns.add(new Session(this, sock));
     });

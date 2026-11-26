@@ -26,10 +26,12 @@ const P = require('../protocol.js');
   assert.strictEqual(NetAllow.ok('::1'), true);
   assert.strictEqual(NetAllow.ok(''), false);
 
-  // A list with nothing valid in it: loopback only, never everyone.
-  NetAllow.set(['nonsense']);
-  assert.strictEqual(NetAllow.ok('100.82.128.47'), false);
-  assert.strictEqual(NetAllow.ok('127.0.0.1'), true);
+  // A list with nothing valid in it, an empty list or not a list: loopback only, never everyone.
+  for (const bad of [['nonsense'], [], {}, 'x', 123]) {
+    NetAllow.set(bad);
+    assert.strictEqual(NetAllow.ok('100.82.128.47'), false, JSON.stringify(bad));
+    assert.strictEqual(NetAllow.ok('127.0.0.1'), true);
+  }
 
   // The file: missing = everyone; unreadable = loopback only.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'netallow-'));
@@ -38,6 +40,12 @@ const P = require('../protocol.js');
   fs.writeFileSync(path.join(dir, 'bad.json'), '{not json');
   NetAllow.load(path.join(dir, 'bad.json'));
   assert.strictEqual(NetAllow.ok('100.82.128.47'), false);
+  for (const [name, body] of [['obj.json', '{"allow":["100.82.128.47"]}'], ['null.json', 'null'], ['big.json', JSON.stringify(Array(20000).fill('100.82.128.47'))]]) {
+    fs.writeFileSync(path.join(dir, name), body);
+    NetAllow.load(path.join(dir, name));
+    assert.strictEqual(NetAllow.ok('100.82.128.47'), false, name);
+    assert.strictEqual(NetAllow.ok('127.0.0.1'), true, name);
+  }
   fs.writeFileSync(path.join(dir, 'ok.json'), JSON.stringify(['100.82.128.47']));
   NetAllow.load(path.join(dir, 'ok.json'));
   assert.strictEqual(NetAllow.ok('100.82.128.47'), true);
@@ -62,21 +70,51 @@ const P = require('../protocol.js');
     assert.strictEqual(invites, 1, name + ': invite from the list');
   }
 
-  // A TLS server with the guard: a connection from a source not on the list is closed at once.
+  // Real servers: a connection from a source not on the list is destroyed by the guard they carry.
   NetAllow.set(['100.82.128.47']);
-  let destroyed = false;
-  NetAllow.guard({ remoteAddress: '::ffff:192.168.50.66', destroy: () => { destroyed = true; } });
-  assert.strictEqual(destroyed, true);
-  destroyed = false;
-  NetAllow.guard({ remoteAddress: '::ffff:100.82.128.47', destroy: () => { destroyed = true; } });
-  assert.strictEqual(destroyed, false);
-
-  // Every listener on 0.0.0.0 that a peer reaches carries the guard.
-  const root = path.join(__dirname, '..', '..');
-  for (const f of ['windows/server.js', 'mac/server.js', 'windows/mesh/server.js', 'mac/mesh/server.js', 'shared/fx2-engine.js', 'shared/fastfile.js']) {
-    const src = fs.readFileSync(path.join(root, f), 'utf8');
-    assert(/NetAllow\.guard/.test(src), f + ' has no NetAllow.guard');
+  const fake = (addr) => { const o = { remoteAddress: addr, destroyed: false, destroy() { o.destroyed = true; } }; return o; };
+  const guarded = (srv) => srv.listeners('connection').includes(NetAllow.guard);
+  {
+    const { Engine } = require('../fx2-engine.js');
+    const { FastFiles } = require('../fastfile.js');
+    const { execFileSync } = require('child_process');
+    const certDir = fs.mkdtempSync(path.join(os.tmpdir(), 'netallow-tls-'));
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=test',
+      '-keyout', path.join(certDir, 'key.pem'), '-out', path.join(certDir, 'cert.pem')], { stdio: 'ignore' });
+    const tls = { key: fs.readFileSync(path.join(certDir, 'key.pem'), 'utf8'), cert: fs.readFileSync(path.join(certDir, 'cert.pem'), 'utf8') };
+    const e = new Engine(() => {});
+    e.handle({ op: 'listen', tls });
+    e.handle({ op: 'plain', on: true });
+    const ff = new FastFiles({ session: () => null, deliver() {}, send() {} });
+    ff.setPlain(true);
+    const t0 = Date.now();
+    while (!(e.server && e.plainServer && ff.plainServer) && Date.now() - t0 < 5000) await new Promise((r) => setTimeout(r, 5));
+    for (const [what, srv] of [['fx2 HTTPS', e.server], ['fx2 plain', e.plainServer], ['fx plain', ff.plainServer]]) assert(guarded(srv), what + ': no guard');
+    const out = fake('::ffff:192.168.50.66');
+    NetAllow.guard(out);
+    assert.strictEqual(out.destroyed, true, 'outside connection kept');
+    const inside = fake('::ffff:100.82.128.47');
+    NetAllow.guard(inside);
+    assert.strictEqual(inside.destroyed, false, 'listed connection closed');
+    e.server.close();
+    e.plainServer.close();
+    ff.setPlain(false);
+    fs.rmSync(certDir, { recursive: true, force: true });
   }
-  assert(/NetAllow\.ok\(rinfo\.address\)/.test(fs.readFileSync(path.join(root, 'shared/inputlane.js'), 'utf8')), 'input lane unguarded');
+
+  // The session servers (normal and Multi-device) and the off-by-default servers attach the guard to
+  // each server they make.
+  const root = path.join(__dirname, '..', '..');
+  for (const f of ['windows/server.js', 'mac/server.js', 'windows/mesh/server.js', 'mac/mesh/server.js']) {
+    const src = fs.readFileSync(path.join(root, f), 'utf8');
+    assert(/this\.https = https\.createServer\(this\.tls\);\n\s*this\.https\.requestTimeout = 0;[^\n]*\n\s*this\.https\.on\('connection', NetAllow\.guard\);/.test(src), f + ': session server unguarded');
+  }
+  for (const [f, n] of [['shared/web/webhub.js', 2], ['shared/foldershare.js', 1], ['shared/rzlive.js', 1]]) {
+    const src = fs.readFileSync(path.join(root, f), 'utf8');
+    assert.strictEqual((src.match(/\.on\('connection', NetAllow\.guard\)/g) || []).length, n, f + ': guards');
+  }
+  assert(/net\.createServer\(\(sock\) => \{\n\s*if \(!NetAllow\.ok\(sock\.remoteAddress\)\) return sock\.destroy\(\);/.test(fs.readFileSync(path.join(root, 'shared/airplay/receiver.js'), 'utf8')), 'AirPlay unguarded');
+  assert(/_onPacket\(pkt, rinfo\) \{\n\s*if \(!NetAllow\.ok\(rinfo\.address\)\) return;/.test(fs.readFileSync(path.join(root, 'shared/inputlane.js'), 'utf8')), 'input lane unguarded');
   console.log('netallow: ok');
+  process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

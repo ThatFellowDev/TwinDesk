@@ -54,7 +54,7 @@ class Server extends EventEmitter {
     this.tls = { key: keyPem, cert: certPem }; // also the shared folder's server (shared/foldershare.js)
     this.https = https.createServer(this.tls);
     this.https.requestTimeout = 0; // not Node's 5-min cap on a whole request: fast files' PUTs (a phone's, a guest's) outlast it
-    this.https.on('connection', NetAllow.guard); // ThatFellowDev build: shared/netallow.js
+    this.https.on('connection', NetAllow.guard);
     this.wss = new WebSocketServer({ server: this.https, maxPayload: P.MAX_PAYLOAD });
     // A phone's own screen (an iPhone's Share Screen, Android's Mirroring › Native): its upload here.
     this.https.on('request', (req, res) => {
